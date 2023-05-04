@@ -71,6 +71,9 @@ pub struct ValidatedModule<'a> {
     /// Whether or not this module exported a `cabi_realloc` function.
     pub realloc: Option<&'a str>,
 
+    /// Whether or not this module exported a `cabi_realloc_adapter` function.
+    pub adapter_realloc: Option<&'a str>,
+
     /// The original metadata specified for this module.
     pub metadata: &'a ModuleMetadata,
 }
@@ -89,6 +92,7 @@ pub struct ValidatedModule<'a> {
 pub fn validate_module<'a>(
     bytes: &'a [u8],
     metadata: &'a Bindgen,
+    exports: &IndexSet<String>,
     adapters: &IndexSet<&str>,
 ) -> Result<ValidatedModule<'a>> {
     let mut validator = Validator::new();
@@ -100,6 +104,7 @@ pub fn validate_module<'a>(
         adapters_required: Default::default(),
         has_memory: false,
         realloc: None,
+        adapter_realloc: None,
         metadata: &metadata.metadata,
     };
 
@@ -143,6 +148,9 @@ pub fn validate_module<'a>(
                                     || export.name == "canonical_abi_realloc"
                                 {
                                     ret.realloc = Some(export.name);
+                                }
+                                if export.name == "cabi_realloc_adapter" {
+                                    ret.adapter_realloc = Some(export.name);
                                 }
                                 continue;
                             }
@@ -197,8 +205,14 @@ pub fn validate_module<'a>(
         }
     }
 
-    for (name, item) in world.exports.iter() {
-        validate_exported_item(&metadata.resolve, item, name, &export_funcs, &types)?;
+    for name in exports {
+        validate_exported_item(
+            &metadata.resolve,
+            &world.exports[name],
+            name,
+            &export_funcs,
+            &types,
+        )?;
     }
 
     Ok(ret)

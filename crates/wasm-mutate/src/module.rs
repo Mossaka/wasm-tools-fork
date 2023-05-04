@@ -81,12 +81,20 @@ pub fn map_type(tpe: wasmparser::ValType) -> Result<ValType> {
     }
 }
 
-pub fn map_ref_type(tpe: wasmparser::RefType) -> Result<RefType> {
+pub fn map_ref_type(ref_ty: wasmparser::RefType) -> Result<RefType> {
     Ok(RefType {
-        nullable: tpe.nullable,
-        heap_type: match tpe.heap_type {
+        nullable: ref_ty.is_nullable(),
+        heap_type: match ref_ty.heap_type() {
             wasmparser::HeapType::Func => HeapType::Func,
             wasmparser::HeapType::Extern => HeapType::Extern,
+            wasmparser::HeapType::Any => HeapType::Any,
+            wasmparser::HeapType::None => HeapType::None,
+            wasmparser::HeapType::NoExtern => HeapType::NoExtern,
+            wasmparser::HeapType::NoFunc => HeapType::NoFunc,
+            wasmparser::HeapType::Eq => HeapType::Eq,
+            wasmparser::HeapType::Struct => HeapType::Struct,
+            wasmparser::HeapType::Array => HeapType::Array,
+            wasmparser::HeapType::I31 => HeapType::I31,
             wasmparser::HeapType::TypedFunc(i) => HeapType::TypedFunc(i.into()),
         },
     })

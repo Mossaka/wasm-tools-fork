@@ -1,7 +1,7 @@
 use super::{Printer, State};
 use anyhow::{bail, Result};
 use std::fmt::Write;
-use wasmparser::{BlockType, BrTable, HeapType, MemArg, VisitOperator};
+use wasmparser::{BlockType, BrTable, MemArg, VisitOperator};
 
 pub struct PrintOperator<'a, 'b> {
     pub(super) printer: &'a mut Printer,
@@ -117,7 +117,7 @@ impl<'a, 'b> PrintOperator<'a, 'b> {
 
     fn type_index(&mut self, idx: u32) -> Result<()> {
         self.push_str(" ");
-        self.printer.print_type_ref(self.state, idx, true, None)
+        self.printer.print_core_type_ref(self.state, idx)
     }
 
     fn data_index(&mut self, idx: u32) -> Result<()> {
@@ -165,10 +165,6 @@ impl<'a, 'b> PrintOperator<'a, 'b> {
             write!(self.result(), " align={}", align)?;
         }
         Ok(())
-    }
-
-    fn hty(&mut self, hty: HeapType) -> Result<()> {
-        self.printer.print_heaptype(hty)
     }
 }
 
@@ -229,6 +225,14 @@ macro_rules! define_visit {
             $self.table_index($table)?;
         }
         $self.type_index($ty)?;
+    );
+    (payload $self:ident CallRef $ty:ident) => (
+        $self.push_str(" ");
+        $self.printer.print_idx(&$self.state.core.type_names, $ty)?;
+    );
+    (payload $self:ident ReturnCallRef $ty:ident) => (
+        $self.push_str(" ");
+        $self.printer.print_idx(&$self.state.core.type_names, $ty)?;
     );
     (payload $self:ident TypedSelect $ty:ident) => (
         $self.push_str(" (result ");

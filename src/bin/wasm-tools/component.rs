@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use wasm_encoder::{Encode, Section};
@@ -190,8 +191,8 @@ impl EmbedOpts {
         )?;
 
         let section = wasm_encoder::CustomSection {
-            name: "component-type",
-            data: &encoded,
+            name: "component-type".into(),
+            data: Cow::Borrowed(&encoded),
         };
         let mut wasm = wasm.unwrap_or_else(|| wit_component::dummy_module(&resolve, world));
         wasm.push(section.id());
@@ -302,7 +303,7 @@ impl WitOpts {
             Some(input) => match input.extension().and_then(|s| s.to_str()) {
                 Some("wat") | Some("wasm") => {
                     let bytes = wat::parse_file(&input)?;
-                    wit_component::decode(name, &bytes).context("failed to decode WIT document")?
+                    decode_wasm(name, &bytes).context("failed to decode WIT document")?
                 }
                 _ => {
                     let (resolve, id) = parse_wit(input)?;
@@ -321,7 +322,7 @@ impl WitOpts {
                         e
                     })?;
 
-                    wit_component::decode(name, &bytes).context("failed to decode WIT document")?
+                    decode_wasm(name, &bytes).context("failed to decode WIT document")?
                 } else {
                     let stdin = match std::str::from_utf8(&stdin) {
                         Ok(s) => s,
@@ -489,4 +490,13 @@ fn is_wasm(bytes: &[u8]) -> bool {
     }
 
     false
+}
+
+fn decode_wasm(name: &str, bytes: &[u8]) -> Result<DecodedWasm> {
+    if wasmparser::Parser::is_component(bytes) {
+        wit_component::decode(name, bytes)
+    } else {
+        let (_wasm, bindgen) = wit_component::metadata::decode(bytes)?;
+        Ok(DecodedWasm::Component(bindgen.resolve, bindgen.world))
+    }
 }

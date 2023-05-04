@@ -48,6 +48,7 @@ fn test_validate() {
 mod component;
 mod core;
 mod func;
+pub mod names;
 mod operators;
 pub mod types;
 
@@ -244,6 +245,8 @@ pub struct WasmFeatures {
     pub function_references: bool,
     /// The WebAssembly memory control proposal
     pub memory_control: bool,
+    /// The WebAssembly gc proposal
+    pub gc: bool,
 }
 
 impl WasmFeatures {
@@ -264,7 +267,7 @@ impl WasmFeatures {
             ValType::Ref(r) => {
                 if self.reference_types {
                     if !self.function_references {
-                        match (r.heap_type, r.nullable) {
+                        match (r.heap_type(), r.is_nullable()) {
                             (_, false) => {
                                 Err("function references required for non-nullable types")
                             }
@@ -304,6 +307,7 @@ impl Default for WasmFeatures {
             component_model: false,
             function_references: false,
             memory_control: false,
+            gc: false,
 
             // On-by-default features (phase 4 or greater).
             mutable_global: true,
@@ -540,7 +544,8 @@ impl Validator {
                     );
                 }
                 if num == WASM_COMPONENT_VERSION {
-                    self.components.push(ComponentState::default());
+                    self.components
+                        .push(ComponentState::new(ComponentKind::Component));
                     State::Component
                 } else if num < WASM_COMPONENT_VERSION {
                     bail!(range.start, "unsupported component version: {num:#x}");
@@ -1120,6 +1125,15 @@ impl Validator {
                         func_index,
                         options,
                     } => current.lower_function(func_index, options.into_vec(), types, offset),
+                    crate::CanonicalFunction::ResourceNew { resource } => {
+                        current.resource_new(resource, types, offset)
+                    }
+                    crate::CanonicalFunction::ResourceDrop { ty } => {
+                        current.resource_drop(ty, types, offset)
+                    }
+                    crate::CanonicalFunction::ResourceRep { resource } => {
+                        current.resource_rep(resource, types, offset)
+                    }
                 }
             },
         )
@@ -1134,16 +1148,6 @@ impl Validator {
         range: &Range<usize>,
     ) -> Result<()> {
         self.state.ensure_component("start", range.start)?;
-
-        // let mut section = section.clone();
-        // let f = section.read()?;
-
-        // if !section.eof() {
-        //     return Err(BinaryReaderError::new(
-        //         "trailing data at the end of the start section",
-        //         section.original_position(),
-        //     ));
-        // }
 
         self.components.last_mut().unwrap().add_start(
             f.func_index,
@@ -1203,6 +1207,7 @@ impl Validator {
                     export.name,
                     export.url,
                     ty,
+                    types,
                     offset,
                     false, /* checked above */
                 )
@@ -1251,16 +1256,18 @@ impl Validator {
 
                 // Validate that all values were used for the component
                 if let Some(index) = component.values.iter().position(|(_, used)| !*used) {
-                    return Err(
-                        format_err!(offset,"value index {index} was not used as part of an instantiation, start function, or export"
-                            )
+                    bail!(
+                        offset,
+                        "value index {index} was not used as part of an \
+                         instantiation, start function, or export"
                     );
                 }
 
                 // If there's a parent component, pop the stack, add it to the parent,
                 // and continue to validate the component
+                let ty = component.finish(&mut self.types, offset)?;
                 if let Some(parent) = self.components.last_mut() {
-                    parent.add_component(&mut component, &mut self.types);
+                    parent.add_component(ty, &mut self.types)?;
                     self.state = State::Component;
                 }
 
@@ -1494,7 +1501,48 @@ mod tests {
         let a1_id = types.id_from_type_index(1, false).unwrap();
         let a2_id = types.id_from_type_index(2, false).unwrap();
 
-        // The ids should all be different
+        // The ids should all be the same
+        assert!(t_id == a1_id);
+        assert!(t_id == a2_id);
+        assert!(a1_id == a2_id);
+
+        // However, they should all point to the same type
+        assert!(std::ptr::eq(
+            types.type_from_id(t_id).unwrap(),
+            types.type_from_id(a1_id).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            types.type_from_id(t_id).unwrap(),
+            types.type_from_id(a2_id).unwrap()
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_type_id_exports() -> Result<()> {
+        let bytes = wat::parse_str(
+            r#"
+            (component
+              (type $T (list string))
+              (export $A1 "A1" (type $T))
+              (export $A2 "A2" (type $T))
+            )
+        "#,
+        )?;
+
+        let mut validator = Validator::new_with_features(WasmFeatures {
+            component_model: true,
+            ..Default::default()
+        });
+
+        let types = validator.validate_all(&bytes)?;
+
+        let t_id = types.id_from_type_index(0, false).unwrap();
+        let a1_id = types.id_from_type_index(1, false).unwrap();
+        let a2_id = types.id_from_type_index(2, false).unwrap();
+
+        // The ids should all be the same
         assert!(t_id != a1_id);
         assert!(t_id != a2_id);
         assert!(a1_id != a2_id);

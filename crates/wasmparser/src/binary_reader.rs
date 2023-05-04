@@ -21,7 +21,7 @@ use std::marker;
 use std::ops::Range;
 use std::str;
 
-const WASM_MAGIC_NUMBER: &[u8; 4] = b"\0asm";
+pub(crate) const WASM_MAGIC_NUMBER: &[u8; 4] = b"\0asm";
 
 /// A binary reader for WebAssembly modules.
 #[derive(Debug, Clone)]
@@ -91,6 +91,11 @@ impl BinaryReaderError {
     /// Get the offset within the Wasm binary where the error occurred.
     pub fn offset(&self) -> usize {
         self.inner.offset
+    }
+
+    pub(crate) fn add_context(&mut self, mut context: String) {
+        context.push_str("\n");
+        self.inner.message.insert_str(0, &context);
     }
 }
 
