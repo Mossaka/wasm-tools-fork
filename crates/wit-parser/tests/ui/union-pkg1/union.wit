@@ -1,0 +1,3 @@
+default world union-w {
+    include pkg.a.my-world-a
+}

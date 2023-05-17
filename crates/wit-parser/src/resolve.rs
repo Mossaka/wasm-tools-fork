@@ -709,6 +709,9 @@ impl Remap {
         Ok(pkgid)
     }
 
+    // TODO: drawing conncetion between dummy interfaces and actual interfaces
+    // update this to also connect the Worlds
+    // Add a case for world
     fn process_foreign_deps(
         &mut self,
         resolve: &mut Resolve,

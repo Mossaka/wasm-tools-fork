@@ -47,7 +47,7 @@ impl<'a> Ast<'a> {
                             WorldItem::Type(_) => {}
                             WorldItem::Import(Import { kind, .. }) => imports.push(kind),
                             WorldItem::Export(Export { kind, .. }) => exports.push(kind),
-                            WorldItem::Include(i) => f(None, &i.from, None)?,
+                            WorldItem::Include(i) => f(Some(&world.name), &i.from, None)?,
                         }
                     }
 
@@ -325,8 +325,11 @@ pub enum UsePath<'a> {
     },
 }
 
+#[derive(Debug)]
 pub struct UseName<'a> {
+    /// The name of the item
     pub name: Id<'a>,
+    /// The name to be replaced with
     pub as_: Option<Id<'a>>,
 }
 

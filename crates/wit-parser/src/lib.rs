@@ -251,6 +251,9 @@ pub struct World {
 
     /// The document that owns this world.
     pub document: DocumentId,
+
+    ///
+    pub includes: Vec<WorldId>,
 }
 
 #[derive(Debug, Clone)]

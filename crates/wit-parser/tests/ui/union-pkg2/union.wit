@@ -1,0 +1,4 @@
+default world union-my-world {
+    include pkg.a.my-world-a
+    include pkg.b.my-world-b
+}

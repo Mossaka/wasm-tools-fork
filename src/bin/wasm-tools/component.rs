@@ -419,7 +419,7 @@ impl WitOpts {
                     None => match pkg.documents.len() {
                         1 => *pkg.documents.iter().next().unwrap().1,
                         _ => bail!(
-                            "more than document found in package, \
+                            "more than one document found in package, \
                              specify which to print with `-d name`"
                         ),
                     },

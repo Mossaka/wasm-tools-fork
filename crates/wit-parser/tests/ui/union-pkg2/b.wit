@@ -1,0 +1,9 @@
+interface a { }
+interface b { }
+interface c { }
+
+world my-world-b {
+    import a: self.a
+    import b: self.b
+    export c: self.c
+}
